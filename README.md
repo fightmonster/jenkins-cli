@@ -9,6 +9,25 @@ Node.js / TypeScript command-line client for Jenkins, with explicit support for 
 
 For non-interactive AI agent usage, see [docs/AI_AGENT.md](docs/AI_AGENT.md).
 
+## Quick Start
+
+```bash
+# 1. Install (always pulls the latest release)
+npm install -g https://github.com/fightmonster/jenkins-cli/releases/latest/download/jenkins-cli.tgz
+
+# 2. Configure (one command, token saved to ~/.jenkins-cli/config.json)
+JENKINS_TOKEN=<your-api-token> jkc setup \
+  --url <jenkins-url> \
+  --username <your-jenkins-username> \
+  --token-env JENKINS_TOKEN \
+  --non-interactive
+
+# 3. Verify
+jkc me
+```
+
+Generate an API token at: `<jenkins-url>/user/<your-username>/security/apiToken`
+
 ## Install
 
 ```bash

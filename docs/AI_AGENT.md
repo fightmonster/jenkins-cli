@@ -32,6 +32,25 @@ node dist/cli/index.js --help
 
 Running `jkc` (or `jenkins-cli`) with no subcommand prints a human-readable dashboard; agents should prefer explicit subcommands with `--json` for parseable output.
 
+## Quick Start
+
+```bash
+# 1. Install (always pulls the latest release)
+npm install -g https://github.com/fightmonster/jenkins-cli/releases/latest/download/jenkins-cli.tgz
+
+# 2. Configure (non-interactive, token saved to ~/.jenkins-cli/config.json)
+JENKINS_TOKEN=<api-token> jkc setup \
+  --url <jenkins-url> \
+  --username <username> \
+  --token-env JENKINS_TOKEN \
+  --non-interactive
+
+# 3. Verify
+jkc me --json
+```
+
+The `JENKINS_TOKEN` env var is consumed by `setup` and discarded; future `jkc` calls read from `config.json` and need no env vars.
+
 ## Authentication
 
 Three independent auth paths, in priority order:
