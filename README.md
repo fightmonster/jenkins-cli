@@ -1,172 +1,174 @@
-# Jenkins CLI
+# jenkins-cli
 
-Node.js/TypeScript Jenkins CLI, command alias `jkc`.
+Node.js / TypeScript command-line client for Jenkins, with explicit support for AI agents and automation.
 
-For non-interactive AI Agent usage, see [docs/AI_AGENT.md](docs/AI_AGENT.md).
+- Package name: `jenkins-cli`
+- Binaries: `jenkins-cli`, `jkc`, `jck` (all point to the same entry)
+- Node: `>= 20.0.0`
+- License: ISC
 
-## Setup
+For non-interactive AI agent usage, see [docs/AI_AGENT.md](docs/AI_AGENT.md).
 
-Interactive first-time setup:
+## Install
 
 ```bash
+npm install -g jenkins-cli
+# or, from a clone:
 npm install
 npm run build
-node dist/cli/index.js setup
+npm link          # exposes jenkins-cli / jkc / jck on PATH
 ```
 
-Non-interactive setup:
+## First-Time Setup
+
+Interactive:
 
 ```bash
-npm install
-npm run build
-node dist/cli/index.js setup \
-  --profile local \
-  --url http://localhost:8080 \
-  --username cli-user \
+jkc setup
+```
+
+You will be prompted for:
+
+1. Profile name (e.g. `work`, `local`)
+2. Jenkins URL (e.g. `https://jenkins.example.com`)
+3. Username
+4. API token (or password)
+
+Need a token? Generate one at:
+
+```text
+<jenkins-url>/user/<username>/security/apiToken
+```
+
+Non-interactive:
+
+```bash
+JENKINS_TOKEN=<token> jkc setup \
+  --profile work \
+  --url <jenkins-url> \
+  --username <username> \
   --token-env JENKINS_TOKEN \
   --non-interactive
 ```
 
-Other non-interactive token input:
+Or read the token from stdin:
 
 ```bash
-printf '%s' '<jenkins-api-token>' | node dist/cli/index.js setup \
-  --profile local \
-  --url http://localhost:8080 \
-  --username cli-user \
+printf '%s' '<token>' | jkc setup \
+  --profile work \
+  --url <jenkins-url> \
+  --username <username> \
   --token-stdin \
   --non-interactive
 ```
 
-Configuration is stored at:
+Configuration is stored at `~/.jenkins-cli/config.json` (mode `0600`).
 
-```text
-~/.jenkins-cli/config.json
-```
+## Authentication Priority
 
-Environment variables can override config:
+`jenkins-cli` resolves the active profile in this order:
 
-```text
-JENKINS_URL
-JENKINS_USERNAME
-JENKINS_TOKEN
-JENKINS_CRUMB_ISSUER=false
-```
+1. `-j <name>` / `--jenkins <name>` (one-shot override)
+2. `JKC_PROFILE=<name>` env var
+3. `JENKINS_URL` + `JENKINS_USERNAME` + `JENKINS_TOKEN` env trio
+4. `currentProfile` in `~/.jenkins-cli/config.json`
 
-Validate the saved profile:
+The name `env` is reserved and forces use of the env trio (no profile entry required).
 
 ```bash
-node dist/cli/index.js config validate
-```
+# Use a different profile for one call
+jkc -j staging me
 
-Update the current profile interactively:
-
-```bash
-node dist/cli/index.js config edit
+# Use the env-trio profile explicitly
+JENKINS_URL=<jenkins-url> JENKINS_USERNAME=<user> JENKINS_TOKEN=<token> \
+  jkc -j env jobs
 ```
 
 ## Commands
 
-```bash
-jkc
-jck
-jkc me
-jkc me --mine-limit 50
-jkc perms
-jkc perms --job builder-pipeline-job
-jkc config list
-jkc config show
-jkc config use local
-jkc config validate
-jkc config edit
-jkc jobs
-jkc jobs --search pipeline
-jkc jobs --recursive
-jkc job builder-pipeline-job
-jkc params builder-pipeline-job
-jkc nodes
-jkc nodes --label linux-builder
-jkc node linux-builder
-jkc plugins
-jkc plugins --search workflow
-jkc queue
-jkc queue cancel 123
-jkc build builder-pipeline-job --param BUILD_TARGET=cli-test --watch
-jkc build builder-pipeline-job --label linux-builder --watch
-jkc build builder-pipeline-job --node linux-builder --watch
-jkc build builder-pipeline-job --node linux-builder --node-param BUILD_NODE
-jkc rebuild builder-pipeline-job 3 --watch
-jkc build-info builder-pipeline-job 3
-jkc status builder-pipeline-job 3
-jkc changes builder-pipeline-job 3
-jkc steps builder-pipeline-job 3
-jkc pipeline-steps builder-pipeline-job 3
-jkc log builder-pipeline-job
-jkc log builder-pipeline-job 1 --follow
-jkc log builder-pipeline-job 1 --output builder-pipeline-job-1.log
-jkc log builder-pipeline-job 1 --download
-jkc log builder-pipeline-job 1 --download console.log
-jkc node-log linux-builder
-jkc node-log linux-builder --output linux-builder.log
-jkc stop builder-pipeline-job 2
-jkc stop builder-pipeline-job --last
-jkc stop builder-pipeline-job --running
-jkc artifacts builder-pipeline-job
-jkc artifacts builder-pipeline-job --download
-jkc workspace builder-pipeline-job
-jkc workspaces builder-pipeline-job --build 3
-jkc workspace builder-pipeline-job build/local-builder-demo.jar --output local-builder-demo.jar
-jkc restart-stage builder-pipeline-job 3 --stage "Simulate Build"
+Run `jkc --help` for the live list. The most-used groups:
+
+```text
+identity / permissions
+  me, perms
+
+configuration
+  setup, config (list | show | use | validate | edit)
+
+jobs
+  jobs, job, params, job-type
+
+instance
+  center (identity | labels), crumb
+
+nodes / builders
+  nodes, node, node-log
+
+queue
+  queue (read), queue cancel <id>
+
+build (state-modifying)
+  build, rebuild, stop, restart-stage
+
+build (read-only)
+  build-info | status, changes, steps, log
+
+artifacts / workspace
+  artifacts, workspace
 ```
 
-Running `jkc` or `jck` without subcommands prints a status dashboard with the JKC banner, current login status, config JSON path, current profile, Jenkins URL, username, token mask, and crumb setting.
+All query commands support `--json`. Most list / report commands support `-f table|json|csv|md`.
 
-All query commands support JSON output:
+### Examples
 
 ```bash
-jkc nodes --json
-jkc node linux-builder --json
-jkc perms --job builder-pipeline-job --json
+jkc me                                         # who am I, what's my Jenkins
+jkc perms                                      # capability inventory
+jkc perms --job <job-name>                     # per-job permissions
+
+jkc jobs                                       # list jobs at root
+jkc jobs -r                                    # recursive (folder / multibranch)
+jkc jobs -s release                            # substring filter
+jkc jobs -p "*-black"                          # glob filter
+jkc jobs -p "**/test-*" -r                     # recursive glob
+jkc job <job-name>                             # job details
+jkc params <job-name>                          # parameter definitions
+
+jkc nodes                                      # build machines
+jkc node <node-name>                           # single machine
+jkc center identity                            # Jenkins mode / version
+jkc center labels                              # agent labels
+jkc crumb                                      # CSRF crumb (Jenkins-Crumb=...)
+
+jkc build <job-name> -p KEY1=VAL1 -p KEY2=VAL2 # trigger a build
+jkc build <job-name> -p K=V --node <name> -w   # trigger + wait + stream log
+jkc rebuild <job-name> 42                      # rebuild with #42's parameters
+jkc stop <job-name> 42                         # abort build #42
+jkc build-info <job-name> 42                   # build summary
+jkc log <job-name> 42 -f                       # stream log
+jkc log <job-name> 42 -o build-42.log          # save log to file
+jkc artifacts <job-name> 42 --download         # download all artifacts
+jkc workspace <job-name> path/to/file -o out   # download one workspace file
+
+jkc queue                                      # see what's pending
+jkc plugins                                    # installed plugins (needs admin)
 ```
 
-Most list/report commands support table, JSON, CSV, and Markdown table output:
+## Output Formats
 
 ```bash
 jkc jobs --format csv
 jkc nodes --format md
-jkc queue --format csv
-jkc plugins --format csv
-jkc artifacts builder-pipeline-job --format md
-jkc changes builder-pipeline-job --format md
-jkc steps builder-pipeline-job --format csv
-jkc workspace builder-pipeline-job --format md
-jkc perms --job builder-pipeline-job --format csv
-jkc me --format md
+jkc build-info <job> 1 --json
 ```
 
-## Web UI Feature Mapping
+Supported by most list / report commands:
 
 ```text
-Status / View Build Information  jkc build-info <job> [buildNo], jkc status <job> [buildNo]
-Changes                          jkc changes <job> [buildNo]
-Console Output                   jkc log <job> [buildNo] --follow
-Parameters                       jkc params <job>, jkc build-info <job> [buildNo]
-Rebuild                          jkc rebuild <job> [buildNo]
-Pipeline Steps                   jkc steps <job> [buildNo], jkc pipeline-steps <job> [buildNo]
-Workspaces                       jkc workspace <job> [path], jkc workspaces <job> [path]
-Previous build                   jkc build-info <job> [buildNo]
-Restart from Stage               jkc restart-stage <job> <buildNo> --stage <name>
-```
-
-`restart-stage` depends on Jenkins Declarative Pipeline restart support and only works for builds where Jenkins exposes that action. `steps` uses the Pipeline REST API when present and falls back to parsing console output when the API is unavailable.
-
-Supported formats:
-
-```text
-table
+table   # default, human-readable
 json
 csv
-md
+md      # markdown table
 ```
 
 ## Exit Codes
@@ -177,28 +179,53 @@ md
 2   build result: UNSTABLE
 3   build result: FAILURE
 4   build result: ABORTED
-5   build result: unknown/non-success
-10  Jenkins/API/network error
-20  config/profile error
+5   build result: unknown / non-success
+10  Jenkins / API / network error
+20  config / profile error
 ```
 
-## Local Jenkins Test Profile
+Use these in scripts to distinguish "build failed" from "could not reach Jenkins".
 
-The local Docker Jenkins environment created for development has:
+## Web UI → CLI Mapping
 
 ```text
-baseUrl:  http://localhost:8080
-username: cli-user
-node:     linux-builder
-job:      builder-pipeline-job
+Status / View Build Information   jkc build-info <job> [buildNo]
+                                  jkc status   <job> [buildNo]
+Changes                           jkc changes  <job> [buildNo]
+Console Output                    jkc log <job> [buildNo] --follow
+Parameters                        jkc params <job>
+                                  jkc build-info <job> [buildNo]
+Rebuild                           jkc rebuild <job> [buildNo]
+Pipeline Steps                    jkc steps <job> [buildNo]
+                                  jkc pipeline-steps <job> [buildNo]
+Workspaces                        jkc workspace <job> [path]
+                                  jkc workspaces <job> [path]
+Previous build                    jkc build-info <job> [buildNo]
+Restart from Stage                jkc restart-stage <job> <buildNo>
+                                       --stage <name>
 ```
+
+`restart-stage` requires Declarative Pipeline restart support. `steps` uses the Pipeline REST API when present and falls back to console parsing.
 
 ## `jkc me` Job History
 
-`jkc me` shows:
+`jkc me` reports:
 
 - current Jenkins user and instance security status
 - running builds started by the current user
-- jobs that the current user has triggered in recent build history
+- jobs the current user has triggered in recent build history
 
-Vanilla Jenkins does not expose the exact job creator through the standard REST API. Exact creator lookup requires audit/history plugins. Use `--mine-limit <count>` to control how many recent builds per job are scanned.
+Vanilla Jenkins does not expose the exact job creator through the standard REST API. Use `--mine-limit <count>` to control how many recent builds per job are scanned.
+
+## Development
+
+```bash
+npm run build     # tsc → dist/
+npm run dev       # tsc --watch
+npm test          # tsc + node --test dist/**/*.test.js
+npm pack          # builds jenkins-cli-<version>.tgz
+```
+
+## License
+
+ISC
