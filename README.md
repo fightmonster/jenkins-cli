@@ -114,6 +114,9 @@ identity / permissions
 configuration
   setup, config (list | show | use | validate | edit)
 
+maintenance
+  update
+
 jobs
   jobs, job, params, job-type
 
@@ -166,11 +169,13 @@ jkc stop <job-name> 42                         # abort build #42
 jkc build-info <job-name> 42                   # build summary
 jkc log <job-name> 42 -f                       # stream log
 jkc log <job-name> 42 -o build-42.log          # save log to file
+jkc log <job-name> 42 -r                       # 智能提取编译机底层 error log (SSH/SMB 双通道降级)
 jkc artifacts <job-name> 42 --download         # download all artifacts
 jkc workspace <job-name> path/to/file -o out   # download one workspace file
 
 jkc queue                                      # see what's pending
 jkc plugins                                    # installed plugins (needs admin)
+jkc update                                     # check and install a newer jkc release
 ```
 
 ## Output Formats
@@ -245,6 +250,45 @@ npm test          # tsc + node --test dist/**/*.test.js
 npm pack          # builds jenkins-cli-<version>.tgz
 ```
 
+## Update
+
+```bash
+jkc update
+```
+
+This checks the latest GitHub release first. It installs globally using npm only when a newer version is available; otherwise it reports that the installed CLI is already current. Updating requires write access to the global npm prefix.
+
+## 编译机 Error Log 远程提取 (SSH & SMB)
+
+当您在进行 MTK 或紫光展锐等底层大型编译任务时，编译失败后的详细报错通常会被重定向到物理编译机的各子输出目录中（如 `out_sys/error.log`），而 Jenkins 原生的 Console Log 里常常只有极少的信息。
+
+`jkc` 为此提供了**底层的错误日志自动提取机制**。您只需要对失败的构建执行：
+
+```bash
+jkc log <jobName> [buildNo] -r
+```
+
+#### 特性：
+1. **自动 IP 定位**：自动解析 Jenkins 控制台日志提取对应的物理编译机 IP。
+2. **多平台编译链支持**：
+   * 优先匹配日志里显式输出的错误日志绝对路径。
+   * Fallback 降级到使用通配符在源码父目录下搜索所有的通用 `out_*/error.log` 错误文件并自动合并输出。
+3. **SSH + SMB 双通道获取（极高兼容性）**：
+   * 优先建立远程 SSH 连接读取文件。
+   * 若 SSH 鉴权失败或连不上，工具会**自动降级触发 SMB 挂载/读取通道**。这不仅能无视个别机器 SSH 密码不一致造成的障碍，还完成了针对 **Windows（UNC 直接拷贝与 net use 凭据注入）** 以及 **macOS（mount_smbfs 静默挂载机制）** 的跨平台原生适配。
+4. **历史构建清理容错**：若文件已被编译机自动清理，工具会给出黄色警告并跳过，不会导致进程崩溃。
+
+#### 配置自定义 (`~/.jenkins-cli/config.json`)：
+您可以在配置文件的最外层，或者在各 profile 内部配置您的自定义凭据：
+```json
+{
+  "sshUser": "android",
+  "sshPass": "brkg@123",
+  "sshFindPattern": "*/out_*/error.log"
+}
+```
+
 ## License
 
 ISC
+

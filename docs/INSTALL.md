@@ -75,6 +75,14 @@ npm uninstall -g jenkins-cli
 rm -rf ~/.jenkins-cli         # remove stored profiles and token
 ```
 
+## Update
+
+```bash
+jkc update
+```
+
+The command checks the latest GitHub release first and uses npm to install it globally only when a newer version is available. If the installed version is current, it makes no changes. If npm reports a permissions error, configure a user-writable global npm prefix or use the installation method approved by your environment.
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

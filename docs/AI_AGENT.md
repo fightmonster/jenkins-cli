@@ -176,6 +176,7 @@ jkc config validate [<profile>]          # read-only
 jkc config use <profile>                 # writes config.json
 jkc config edit [<profile>]              # interactive only, do not use from agent
 jkc setup [...flags] --non-interactive   # writes config.json
+jkc update                                # checks for a newer local CLI release; no Jenkins access
 ```
 
 ### Jobs (read-only)
@@ -302,10 +303,73 @@ jkc nodes --json
 jkc nodes --label <label> --json
 jkc node <node-name> --json
 
-# Read the latest build state
+# Discover the latest build state
 jkc build-info <job-name> lastBuild --json
 jkc log <job-name> lastBuild 200       # last 200 lines
 
 # Trigger a build (after explicit user confirmation)
 jkc build <job-name> -p KEY1=VAL1 -p KEY2=VAL2 -w
 ```
+
+## 🤖 AI Agent 专向：远程编译日志获取及配置规范
+
+为了解决并行编译或 MTK/展锐等大型项目在编译失败时，错误信息被重定向到编译机物理磁盘、而 Jenkins 主控制台仅打印“编译失败”导致 Agent 无法深入排查的痛点，`jenkins-cli` 现已集成了**跨平台远程日志直取与自动降级读取机制**。
+
+### 1. 配置文件变更 (`~/.jenkins-cli/config.json`)
+
+在配置文件的最外层，或者在各 profile 的内部，您可以加入以下 SSH 与 SMB 参数。
+配置遵循的继承解析顺序是：**Profile特定配置 ➡️ 最外层全局配置 ➡️ 代码内硬编码默认值**。
+
+```json
+{
+  "currentProfile": "work",
+  "profiles": {
+    "work": {
+      "url": "http://jenkins.example.com",
+      "username": "junluo",
+      "token": "...",
+      "sshUser": "android",
+      "sshPass": "brkg@123"
+    }
+  },
+  "sshUser": "android",
+  "sshPass": "brkg@123",
+  "sshFindPattern": "*/out_*/error.log"
+}
+```
+
+* **`sshUser`** (string): 编译机 SSH/SMB 用户名，默认值为 `"android"`。
+* **`sshPass`** (string): 编译机密码，默认值为 `"brkg@123"`。
+* **`sshFindPattern`** (string): 当控制台日志中未明确打印失败文件路径时，向下查找错误日志的 glob 通配符模式。默认值为 `"*/out_*/error.log"`，可匹配所有的 `out_system/error.log` 或 `out_vendor/error.log` 等通用编译错误路径。
+
+---
+
+### 2. 远程日志获取命令 (`log -r`)
+
+通过给 `log` 子命令添加 `-r` 或是 `--remote-error` 标志，可以直接拉取编译机本地底层的编译详细报错：
+
+```bash
+# 1. 直接拉取 Jenkins 原生 Console Log 
+jkc log <jobName> [buildNo]
+
+# 2. 【核心功能】智能分析并提取编译机上的底层编译错误日志
+jkc log <jobName> [buildNo] -r
+# 或者
+jkc log <jobName> [buildNo] --remote-error
+```
+
+#### 🛡️ 底层工作机制与双通道降级逻辑（跨平台兼容）：
+
+1. **智能提取 IP 与父目录**：
+   工具首先拉取 Jenkins 主构建控制台文本，脱去 ANSI 颜色码后，通过正则提取运行本构建的编译机 IP 地址。
+2. **分析失败路径策略**：
+   * **策略一（直接路径直取）**：工具匹配控制台日志中是否直接打印了类似 `/local/build/.../*.log` 的文件路径（例如展锐平台的 `FAILED logs`）。如果有，则去重并直接作为目标文件下载。
+   * **策略二（Fallback 通用检索）**：若无，工具会分析报错模块（如 `MSSI编译失败`）及解析其物理源码父目录，并在 SSH 连接后自动执行 `find <parent_dir> -maxdepth 2 -path "<findPattern>"` 来检索所有通用的 `error.log` 物理路径。
+3. **SSH + SMB 双信道读取与跨平台适配**：
+   * **首选 SSH 提取**：优先建立对编译机的 SSH 连接，执行 `cat` 文件内容。
+   * **自动降级 SMB 获取**：若 SSH 登录失败（如部分机器如 `10.83.3.36` 的 SSH 密码更改），工具会**自动捕获并触发 SMB (Samba) 降级流程**，通过 `smbclient` 或者是系统挂载机制把共享目录下的日志取回。
+     * **Windows**：原生支持 UNC 路径读取（`\\IP\local\...`），并在无权限时自动运行 `net use` 注入访问凭据，零额外依赖。
+     * **macOS**：优先检测 `smbclient`，若无则自动使用系统内置的 `mount_smbfs` 进行临时挂载、拷贝并优雅卸载。
+     * **Linux**：使用内置的 `smbclient` 快速拖回文件。
+4. **日志自动清理容错**：
+   如果在编译机上该历史构建的目录已被定时脚本或后续任务清理抹除（抛出 `No such file or directory`），工具会打印警告并尝试读取其余存在的文件。若全部不存在，则优雅输出“文件已被编译机自动清理”友好信息，保护进程不会以 Unhandled Exception 崩溃退出。
