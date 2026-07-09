@@ -284,8 +284,8 @@ jkc log <jobName> [buildNo] -r
 您可以在配置文件的最外层，或者在各 profile 内部配置您的自定义凭据：
 ```json
 {
-  "sshUser": "android",
-  "sshPass": "brkg@123",
+  "sshUser": "your-ssh-username",
+  "sshPass": "your-ssh-password",
   "sshFindPattern": "*/out_*/error.log"
 }
 ```

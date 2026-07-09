@@ -328,19 +328,19 @@ jkc build <job-name> -p KEY1=VAL1 -p KEY2=VAL2 -w
       "url": "http://jenkins.example.com",
       "username": "junluo",
       "token": "...",
-      "sshUser": "android",
-      "sshPass": "brkg@123"
+      "sshUser": "your-ssh-username",
+      "sshPass": "your-ssh-password"
     }
   },
-  "sshUser": "android",
-  "sshPass": "brkg@123",
+  "sshUser": "your-ssh-username",
+  "sshPass": "your-ssh-password",
   "sshFindPattern": "*/out_*/error.log"
 }
 ```
 
-* **`sshUser`** (string): 编译机 SSH/SMB 用户名，默认值为 `"android"`。
-* **`sshPass`** (string): 编译机密码，默认值为 `"brkg@123"`。
-* **`sshFindPattern`** (string): 当控制台日志中未明确打印失败文件路径时，向下查找错误日志的 glob 通配符模式。默认值为 `"*/out_*/error.log"`，可匹配所有的 `out_system/error.log` 或 `out_vendor/error.log` 等通用编译错误路径。
+* **`sshUser`** (string): 编译机 SSH/SMB 用户名，有系统默认内置值。
+* **`sshPass`** (string): 编译机密码，有系统默认内置值。
+* **`sshFindPattern`** (string): 当控制台日志中未明确打印失败文件路径时，向下查找错误日志的 glob 通配符模式。有系统默认内置值 `"*/out_*/error.log"`，可匹配所有的 `out_system/error.log` 或 `out_vendor/error.log` 等通用编译错误路径。
 
 ---
 
