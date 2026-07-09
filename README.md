@@ -31,8 +31,10 @@ Generate an API token at: `<jenkins-url>/user/<your-username>/security/apiToken`
 ## Install
 
 ```bash
-npm install -g jenkins-cli
-# or, from a clone:
+# 从 GitHub Release 最新包安装（推荐）
+npm install -g https://github.com/fightmonster/jenkins-cli/releases/latest/download/jenkins-cli.tgz
+
+# 或者，通过源码本地克隆安装:
 npm install
 npm run build
 npm link          # exposes jenkins-cli / jkc / jck on PATH

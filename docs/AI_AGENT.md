@@ -14,7 +14,7 @@ In commands below, `jkc` is used interchangeably with `jenkins-cli` / `jck`.
 
 ## Runtime
 
-After `npm install -g jenkins-cli` (or `npm link` from this repo):
+After `npm install -g https://github.com/fightmonster/jenkins-cli/releases/latest/download/jenkins-cli.tgz` (or `npm link` from this repo):
 
 ```bash
 jenkins-cli --help
